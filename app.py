@@ -1,66 +1,125 @@
 import streamlit as st
-from pdf_parser import extract_text
-from cleaner import clean_text
-from skill_extractor import extract_skills
-from genai_suggester import genrate_suggestions
+import pdfplumber
 
-# Page config
+# -----------------------------
+# SKILLS DATABASE (IMPORTANT)
+# -----------------------------
+SKILLS = [
+    # Data Science
+    "python", "machine learning", "deep learning", "nlp", "data science",
+    "pandas", "numpy", "matplotlib", "statistics", "sql", "tableau", "power bi",
+
+    # Software Dev
+    "java", "c++", "spring boot", "rest api", "dsa", "git",
+
+    # Web
+    "html", "css", "javascript", "react",
+
+    # Cloud
+    "aws", "azure", "docker"
+]
+
+# -----------------------------
+# PDF TEXT EXTRACTOR
+# -----------------------------
+def extract_text_from_pdf(file):
+    text = ""
+    with pdfplumber.open(file) as pdf:
+        for page in pdf.pages:
+            text += page.extract_text() or ""
+    return text.lower()
+
+
+# -----------------------------
+# SKILL EXTRACTOR
+# -----------------------------
+def extract_skills(text):
+    found = []
+    for skill in SKILLS:
+        if skill in text:
+            found.append(skill)
+    return list(set(found))
+
+
+# -----------------------------
+# STREAMLIT UI
+# -----------------------------
 st.set_page_config(page_title="AI Resume Analyzer", layout="wide")
 
 st.title("🤖 AI Resume Analyzer & Career Guide")
-st.markdown("Upload your resume and compare it with a Job Description 🚀")
 
-# Upload resume
-uploaded_file = st.file_uploader("📄 Upload Resume (PDF)")
+# Upload Resume
+uploaded_file = st.file_uploader("📄 Upload Resume (PDF)", type=["pdf"])
 
-# Job Description input
+# Job Description
 jd_text = st.text_area("📌 Paste Job Description here")
 
 if uploaded_file:
+    resume_text = extract_text_from_pdf(uploaded_file)
 
-    # Save file
-    with open("temp.pdf", "wb") as f:
-        f.write(uploaded_file.read())
+    # Extract skills
+    resume_skills = extract_skills(resume_text)
+    jd_skills = extract_skills(jd_text.lower())
 
-    # Process resume
-    raw_text = extract_text("temp.pdf")
-    clean_resume = clean_text(raw_text)
-    found_skills = extract_skills(clean_resume)
+    # -----------------------------
+    # MATCHING LOGIC (FIXED)
+    # -----------------------------
+    resume_set = set(resume_skills)
+    jd_set = set(jd_skills)
 
-    # Process JD
-    jd_clean = clean_text(jd_text)
-    jd_skills = extract_skills(jd_clean)
+    matched = resume_set.intersection(jd_set)
+    missing = jd_set - resume_set
 
-    # Matching logic
-    matched = [s for s in jd_skills if s in found_skills]
-    missing = [s for s in jd_skills if s not in found_skills]
+    if len(jd_set) == 0:
+        match_score = 0
+    else:
+        match_score = (len(matched) / len(jd_set)) * 100
 
-    # Score calculation
-    score = (len(matched) / len(jd_skills)) * 100 if jd_skills else 0
-
-    # UI Display
+    # -----------------------------
+    # UI OUTPUT
+    # -----------------------------
     st.subheader("📊 Job Match Score")
-    st.progress(int(score))
-    st.write(f"{score:.2f}% match with job")
+    st.progress(int(match_score))
+    st.write(f"{round(match_score,2)}% match with job")
 
-    # Layout
     col1, col2 = st.columns(2)
 
     with col1:
-        st.subheader("✅ Skills Found in Resume")
-        st.write(", ".join(found_skills) if found_skills else "No skills detected")
+        st.success("✔ Skills Found in Resume")
+        st.write(resume_skills)
 
     with col2:
-        st.subheader("❌ Missing Skills (from JD)")
-        st.write(", ".join(missing) if missing else "No missing skills 🎯")
+        st.error("❌ Missing Skills (from JD)")
+        if missing:
+            st.write(list(missing))
+        else:
+            st.write("No missing skills 🎯")
 
-    # AI Suggestions
-    suggestions = genrate_suggestions(found_skills, missing, score)
+    # -----------------------------
+    # AI CAREER INSIGHTS
+    # -----------------------------
+    st.subheader("🧠 AI Career Insights")
 
-    st.subheader("🤖 AI Career Insights")
+    if match_score > 75:
+        st.write("• Your profile strongly matches this role.")
+    elif match_score > 40:
+        st.write("• You are partially matching. Improve missing skills.")
+    else:
+        st.write("• Low match. Consider learning required skills.")
 
-    for s in suggestions:
-        st.write("•", s)
+    # Role suggestions
+    if "machine learning" in resume_set:
+        st.write("• Suitable for Machine Learning Engineer roles.")
+    if "sql" in resume_set:
+        st.write("• Suitable for Data Analyst roles.")
+    if "python" in resume_set:
+        st.write("• You can explore AI Engineer roles.")
 
-else:
-    st.info("Please upload a resume to begin.")
+    # -----------------------------
+    # DEBUG (IMPORTANT FOR YOU)
+    # -----------------------------
+    st.sidebar.subheader("⚙ Debug Info")
+    st.sidebar.write("Resume Skills:", resume_skills)
+    st.sidebar.write("JD Skills:", jd_skills)
+    st.sidebar.write("Matched:", list(matched))
+    st.sidebar.write("Missing:", list(missing))
