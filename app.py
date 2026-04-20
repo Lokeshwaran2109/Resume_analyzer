@@ -1,8 +1,9 @@
 import streamlit as st
 import pdfplumber
+from azure_openai import generate_ai_suggestions
 
 # -----------------------------
-# SKILLS DATABASE (IMPORTANT)
+# SKILLS DATABASE
 # -----------------------------
 SKILLS = [
     # Data Science
@@ -16,11 +17,11 @@ SKILLS = [
     "html", "css", "javascript", "react",
 
     # Cloud
-    "aws", "azure", "docker"
+    "aws", "azure", "docker", "linux"
 ]
 
 # -----------------------------
-# PDF TEXT EXTRACTOR
+# FUNCTIONS
 # -----------------------------
 def extract_text_from_pdf(file):
     text = ""
@@ -30,9 +31,6 @@ def extract_text_from_pdf(file):
     return text.lower()
 
 
-# -----------------------------
-# SKILL EXTRACTOR
-# -----------------------------
 def extract_skills(text):
     found = []
     for skill in SKILLS:
@@ -54,7 +52,12 @@ uploaded_file = st.file_uploader("📄 Upload Resume (PDF)", type=["pdf"])
 # Job Description
 jd_text = st.text_area("📌 Paste Job Description here")
 
-if uploaded_file:
+# -----------------------------
+# MAIN LOGIC
+# -----------------------------
+if uploaded_file is not None:
+
+    # Extract resume text
     resume_text = extract_text_from_pdf(uploaded_file)
 
     # Extract skills
@@ -96,27 +99,30 @@ if uploaded_file:
             st.write("No missing skills 🎯")
 
     # -----------------------------
-    # AI CAREER INSIGHTS
+    # AI SUGGESTIONS
     # -----------------------------
-    st.subheader("🧠 AI Career Insights")
+    st.subheader("🤖 GenAI Suggestions")
+
+    if st.button("Get AI Suggestions"):
+        with st.spinner("Analyzing with AI..."):
+            ai_output = generate_ai_suggestions(resume_text)
+
+            st.write(ai_output)
+
+    # -----------------------------
+    # CAREER INSIGHTS
+    # -----------------------------
+    st.subheader("🧠 Career Insights")
 
     if match_score > 75:
-        st.write("• Your profile strongly matches this role.")
+        st.success("You are a strong match for this role.")
     elif match_score > 40:
-        st.write("• You are partially matching. Improve missing skills.")
+        st.warning("You partially match. Improve missing skills.")
     else:
-        st.write("• Low match. Consider learning required skills.")
-
-    # Role suggestions
-    if "machine learning" in resume_set:
-        st.write("• Suitable for Machine Learning Engineer roles.")
-    if "sql" in resume_set:
-        st.write("• Suitable for Data Analyst roles.")
-    if "python" in resume_set:
-        st.write("• You can explore AI Engineer roles.")
+        st.error("Low match. Focus on required skills.")
 
     # -----------------------------
-    # DEBUG (IMPORTANT FOR YOU)
+    # DEBUG PANEL (VERY USEFUL)
     # -----------------------------
     st.sidebar.subheader("⚙ Debug Info")
     st.sidebar.write("Resume Skills:", resume_skills)
