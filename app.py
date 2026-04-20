@@ -1,6 +1,6 @@
 import streamlit as st
 import pdfplumber
-from azure_openai import generate_ai_suggestions
+from genai_suggester import generate_ai_suggestions
 
 # -----------------------------
 # SKILLS DATABASE
