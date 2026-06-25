@@ -1,131 +1,138 @@
 import streamlit as st
 import pdfplumber
-from genai_suggester import generate_ai_suggestions
 
-# -----------------------------
-# SKILLS DATABASE
-# -----------------------------
-SKILLS = [
-    # Data Science
-    "python", "machine learning", "deep learning", "nlp", "data science",
-    "pandas", "numpy", "matplotlib", "statistics", "sql", "tableau", "power bi",
-
-    # Software Dev
-    "java", "c++", "spring boot", "rest api", "dsa", "git",
-
-    # Web
-    "html", "css", "javascript", "react",
-
-    # Cloud
-    "aws", "azure", "docker", "linux"
-]
-
-# -----------------------------
-# FUNCTIONS
-# -----------------------------
-def extract_text_from_pdf(file):
-    text = ""
-    with pdfplumber.open(file) as pdf:
-        for page in pdf.pages:
-            text += page.extract_text() or ""
-    return text.lower()
-
-
-def extract_skills(text):
-    found = []
-    for skill in SKILLS:
-        if skill in text:
-            found.append(skill)
-    return list(set(found))
+from src.analyzer.skill_extractor import extract_skills
+from src.analyzer.matcher import calculate_match
+from src.ai.ai_service import AIService
 
 
 # -----------------------------
-# STREAMLIT UI
+# PAGE CONFIG
 # -----------------------------
-st.set_page_config(page_title="AI Resume Analyzer", layout="wide")
+st.set_page_config(
+    page_title="AI Resume Analyzer",
+    layout="wide",
+    page_icon="🤖"
+)
 
 st.title("🤖 AI Resume Analyzer & Career Guide")
 
-# Upload Resume
-uploaded_file = st.file_uploader("📄 Upload Resume (PDF)", type=["pdf"])
 
-# Job Description
+# -----------------------------
+# INPUT SECTION
+# -----------------------------
+uploaded_file = st.file_uploader("📄 Upload Resume (PDF)", type=["pdf"])
 jd_text = st.text_area("📌 Paste Job Description here")
+
+
+# -----------------------------
+# PDF EXTRACTION
+# -----------------------------
+def extract_text_from_pdf(file):
+    text = ""
+    try:
+        with pdfplumber.open(file) as pdf:
+            for page in pdf.pages:
+                page_text = page.extract_text()
+                if page_text:
+                    text += page_text + "\n"
+    except Exception as e:
+        st.error(f"PDF Error: {e}")
+        return ""
+
+    return text.lower()
+
 
 # -----------------------------
 # MAIN LOGIC
 # -----------------------------
-if uploaded_file is not None:
+if uploaded_file and jd_text:
 
-    # Extract resume text
+    # Step 1: Extract resume text
     resume_text = extract_text_from_pdf(uploaded_file)
 
-    # Extract skills
-    resume_skills = extract_skills(resume_text)
+    # Step 2: JD FIRST (IMPORTANT FIX YOU WANTED)
+    st.subheader("📌 Job Description Analysis")
+
+    st.info("We analyzed your job description below:")
+    st.write(jd_text[:800])
+
     jd_skills = extract_skills(jd_text.lower())
 
-    # -----------------------------
-    # MATCHING LOGIC (FIXED)
-    # -----------------------------
-    resume_set = set(resume_skills)
-    jd_set = set(jd_skills)
+    st.success("Key skills found in JD:")
+    st.write(jd_skills)
 
-    matched = resume_set.intersection(jd_set)
-    missing = jd_set - resume_set
+    st.divider()
 
-    if len(jd_set) == 0:
-        match_score = 0
-    else:
-        match_score = (len(matched) / len(jd_set)) * 100
+    # Step 3: Resume skills
+    resume_skills = extract_skills(resume_text)
+
+    # Step 4: Matching
+    result = calculate_match(resume_skills, jd_skills)
 
     # -----------------------------
-    # UI OUTPUT
+    # DASHBOARD
     # -----------------------------
-    st.subheader("📊 Job Match Score")
-    st.progress(int(match_score))
-    st.write(f"{round(match_score,2)}% match with job")
+    st.subheader("📊 Resume Match Dashboard")
 
+    col1, col2, col3 = st.columns(3)
+
+    col1.metric("Match Score", f"{result['score']}%")
+    col2.metric("Matched Skills", len(result["matched"]))
+    col3.metric("Missing Skills", len(result["missing"]))
+
+    st.progress(int(result["score"]))
+
+    st.divider()
+
+    # -----------------------------
+    # SKILLS SECTION
+    # -----------------------------
     col1, col2 = st.columns(2)
 
     with col1:
-        st.success("✔ Skills Found in Resume")
-        st.write(resume_skills)
+        st.success("✔ Matched Skills")
+        st.write(result["matched"] if result["matched"] else "None")
 
     with col2:
-        st.error("❌ Missing Skills (from JD)")
-        if missing:
-            st.write(list(missing))
-        else:
-            st.write("No missing skills 🎯")
+        st.error("❌ Missing Skills")
+        st.write(result["missing"] if result["missing"] else "None")
+
+    st.divider()
 
     # -----------------------------
-    # AI SUGGESTIONS
+    # AI SECTION (FREE VERSION OR API)
     # -----------------------------
-    st.subheader("🤖 GenAI Suggestions")
+    st.subheader("🤖 AI Career Suggestions")
 
-    if st.button("Get AI Suggestions"):
-        with st.spinner("Analyzing with AI..."):
-            ai_output = generate_ai_suggestions(resume_text)
+    with st.spinner("Generating insights..."):
+        ai_output = AIService.analyze_resume(resume_text, jd_text)
 
-            st.write(ai_output)
+    st.write(ai_output)
+
+    st.divider()
 
     # -----------------------------
-    # CAREER INSIGHTS
+    # CAREER INSIGHT BOX
     # -----------------------------
-    st.subheader("🧠 Career Insights")
+    st.subheader("🧠 Career Insight")
 
-    if match_score > 75:
-        st.success("You are a strong match for this role.")
-    elif match_score > 40:
-        st.warning("You partially match. Improve missing skills.")
+    if result["score"] >= 75:
+        st.success("🔥 Strong profile - Ready for interviews")
+    elif result["score"] >= 40:
+        st.warning("⚠ Moderate profile - Improve skills")
     else:
-        st.error("Low match. Focus on required skills.")
+        st.error("❌ Weak profile - Needs major improvement")
 
-    # -----------------------------
-    # DEBUG PANEL (VERY USEFUL)
-    # -----------------------------
-    st.sidebar.subheader("⚙ Debug Info")
-    st.sidebar.write("Resume Skills:", resume_skills)
-    st.sidebar.write("JD Skills:", jd_skills)
-    st.sidebar.write("Matched:", list(matched))
-    st.sidebar.write("Missing:", list(missing))
+
+# -----------------------------
+# SIDEBAR DEBUG
+# -----------------------------
+with st.sidebar:
+    st.title("⚙ Debug Panel")
+
+    if uploaded_file:
+        st.write("Resume uploaded ✔")
+
+    if jd_text:
+        st.write("JD provided ✔")
