@@ -18,20 +18,17 @@ st.title("🤖 AI Resume Analyzer & Career Guide")
 
 
 # -----------------------------
-# INPUT SECTION (FIXED ORDER)
+# INPUT SECTION (JD FIRST)
 # -----------------------------
-
 st.subheader("📌 Step 1: Paste Job Description")
-
 jd_text = st.text_area("Enter Job Description here")
 
 st.subheader("📄 Step 2: Upload Resume")
-
 uploaded_file = st.file_uploader("Upload Resume PDF", type=["pdf"])
 
 
 # -----------------------------
-# PDF READER
+# PDF TEXT EXTRACTION
 # -----------------------------
 def extract_text_from_pdf(file):
     text = ""
@@ -55,11 +52,10 @@ def extract_text_from_pdf(file):
 # -----------------------------
 if uploaded_file and jd_text:
 
-    # Extract resume text
     resume_text = extract_text_from_pdf(uploaded_file)
 
     # -----------------------------
-    # JD FIRST DISPLAY
+    # JD ANALYSIS (FIRST)
     # -----------------------------
     st.subheader("📌 Job Description Analysis")
     st.info("We analyzed your Job Description")
@@ -112,12 +108,20 @@ if uploaded_file and jd_text:
             st.write("None")
 
     # -----------------------------
-    # AI SUGGESTIONS
+    # AI SUGGESTION BUTTON (IMPORTANT)
     # -----------------------------
     st.subheader("🤖 AI Career Suggestions")
 
-    ai_output = generate_ai_suggestions(resume_text + " " + jd_text)
-    st.write(ai_output)
+    if st.button("✨ Get AI Suggestions"):
+
+        with st.spinner("Analyzing resume with AI..."):
+
+            ai_output = generate_ai_suggestions(
+                resume_text + " " + jd_text
+            )
+
+            st.success("AI Analysis Completed 🚀")
+            st.write(ai_output)
 
     # -----------------------------
     # CAREER INSIGHT
