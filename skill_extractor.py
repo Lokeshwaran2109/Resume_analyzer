@@ -1,13 +1,23 @@
-from skills import skill_map
+from src.skills import skill_map
 
 
-def extract_skills(text):
+def extract_skills(text: str):
+    """
+    Extract skills using keyword + variation matching.
+    """
+
+    if not text:
+        return []
+
     text = text.lower()
-    found_skills=[]
-    for main_skill,variations in skill_map.items():
+    found_skills = set()
+
+    for main_skill, variations in skill_map.items():
         for var in variations:
-            if var in text:
-                found_skills.append(main_skill)
+
+            # safer matching (avoids partial word issues)
+            if f" {var} " in f" {text} ":
+                found_skills.add(main_skill)
                 break
 
-    return list(set(found_skills))
+    return sorted(list(found_skills))
