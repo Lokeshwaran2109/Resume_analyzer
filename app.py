@@ -1,9 +1,8 @@
 import streamlit as st
 import pdfplumber
 
-from src.analyzer.skill_extractor import extract_skills
-from src.analyzer.matcher import calculate_match
-from src.ai.ai_service import AIService
+from skill_extractor import extract_skills
+from genai_suggester import generate_ai_suggestions
 
 
 # -----------------------------
@@ -16,13 +15,6 @@ st.set_page_config(
 )
 
 st.title("🤖 AI Resume Analyzer & Career Guide")
-
-
-# -----------------------------
-# INPUT SECTION
-# -----------------------------
-uploaded_file = st.file_uploader("📄 Upload Resume (PDF)", type=["pdf"])
-jd_text = st.text_area("📌 Paste Job Description here")
 
 
 # -----------------------------
@@ -44,30 +36,46 @@ def extract_text_from_pdf(file):
 
 
 # -----------------------------
+# MATCH LOGIC (FIXED - NO MISSING FILE)
+# -----------------------------
+def calculate_match(resume_skills, jd_skills):
+
+    resume_set = set(resume_skills)
+    jd_set = set(jd_skills)
+
+    matched = resume_set.intersection(jd_set)
+    missing = jd_set - resume_set
+
+    score = (len(matched) / len(jd_set)) * 100 if jd_set else 0
+
+    return {
+        "score": round(score, 2),
+        "matched": list(matched),
+        "missing": list(missing)
+    }
+
+
+# -----------------------------
+# INPUT
+# -----------------------------
+uploaded_file = st.file_uploader("📄 Upload Resume (PDF)", type=["pdf"])
+jd_text = st.text_area("📌 Paste Job Description here")
+
+
+# -----------------------------
 # MAIN LOGIC
 # -----------------------------
 if uploaded_file and jd_text:
 
-    # Step 1: Extract resume text
     resume_text = extract_text_from_pdf(uploaded_file)
 
-    # Step 2: JD FIRST (IMPORTANT FIX YOU WANTED)
+    # JD analysis first
     st.subheader("📌 Job Description Analysis")
-
-    st.info("We analyzed your job description below:")
     st.write(jd_text[:800])
 
     jd_skills = extract_skills(jd_text.lower())
-
-    st.success("Key skills found in JD:")
-    st.write(jd_skills)
-
-    st.divider()
-
-    # Step 3: Resume skills
     resume_skills = extract_skills(resume_text)
 
-    # Step 4: Matching
     result = calculate_match(resume_skills, jd_skills)
 
     # -----------------------------
@@ -83,10 +91,8 @@ if uploaded_file and jd_text:
 
     st.progress(int(result["score"]))
 
-    st.divider()
-
     # -----------------------------
-    # SKILLS SECTION
+    # SKILLS
     # -----------------------------
     col1, col2 = st.columns(2)
 
@@ -98,22 +104,16 @@ if uploaded_file and jd_text:
         st.error("❌ Missing Skills")
         st.write(result["missing"] if result["missing"] else "None")
 
-    st.divider()
-
     # -----------------------------
-    # AI SECTION (FREE VERSION OR API)
+    # AI (FREE VERSION)
     # -----------------------------
     st.subheader("🤖 AI Career Suggestions")
 
-    with st.spinner("Generating insights..."):
-        ai_output = AIService.analyze_resume(resume_text, jd_text)
-
+    ai_output = generate_ai_suggestions(resume_text + " " + jd_text)
     st.write(ai_output)
 
-    st.divider()
-
     # -----------------------------
-    # CAREER INSIGHT BOX
+    # CAREER INSIGHT
     # -----------------------------
     st.subheader("🧠 Career Insight")
 
@@ -123,16 +123,3 @@ if uploaded_file and jd_text:
         st.warning("⚠ Moderate profile - Improve skills")
     else:
         st.error("❌ Weak profile - Needs major improvement")
-
-
-# -----------------------------
-# SIDEBAR DEBUG
-# -----------------------------
-with st.sidebar:
-    st.title("⚙ Debug Panel")
-
-    if uploaded_file:
-        st.write("Resume uploaded ✔")
-
-    if jd_text:
-        st.write("JD provided ✔")
